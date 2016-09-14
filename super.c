@@ -87,7 +87,7 @@ super()
   printf("s_mtime = %s", ctime(&sp->s_mtime));
   printf("s_wtime = %s", ctime(&sp->s_wtime));
 }
-
+/*****************************************************************************/
 gd()
 {
   get_block(fd, 2, buf);
@@ -118,8 +118,138 @@ gd()
   
 }
 
-char *disk = "mydisk";
+/*****************************************************************************/
+int tst_bit(char *buf, int bit)
+{
+  int i, j;
+  i = bit / 8;  j = bit % 8;
+  return (buf[i] & (1 << j));
+}
 
+imap()
+{
+  char buf[BLKSIZE];
+  int  imap, ninodes;
+  int  i;
+
+  // read SUPER block
+  get_block(fd, 1, buf);
+  sp = (SUPER *)buf;
+
+
+  printf("\nImap Things\n");
+  ninodes = sp->s_inodes_count;
+  printf("ninodes = %d\n", ninodes);
+
+  // read Group Descriptor 0
+  get_block(fd, 2, buf);
+  gp = (GD *)buf;
+
+  imap = gp->bg_inode_bitmap;
+  printf("imap = %d\n", imap);
+
+  // read inode_bitmap block
+  get_block(fd, imap, buf);
+
+  for (i=0; i < ninodes; i++){
+    (tst_bit(buf, i)) ?	putchar('1') : putchar('0');
+    if (i && (i % 8)==0)
+    {
+       printf(" ");
+       if (i % 32 == 0)
+         printf("\n");
+    }
+  }
+  printf("\n");
+}
+/*****************************************************************************/
+bmap()
+{
+  char buf[BLKSIZE];
+  int bmap, blocks;
+  int i;
+
+  // read SUPER block to get the block count yo
+  get_block(fd, 1, buf);
+  sp = (SUPER *)buf;
+
+  printf("\n#justblockthings\n");
+  blocks = sp->s_blocks_count;
+  printf("nblocks = %d\n", blocks);
+
+  // read Group Descriptor 0 to find the block bitmap
+  get_block(fd, 2, buf);
+  gp = (GD *)buf;
+  
+  // In this case this should be '8'
+  bmap = gp->bg_block_bitmap;
+
+  get_block(fd, bmap, buf);
+
+  // I'll copy kc's tst_bit part found in the pre-made imap
+    for (i=0; i < blocks; i++){
+    (tst_bit(buf, i)) ? putchar('1') : putchar('0');
+    if (i && (i % 8)==0)
+    {
+       printf(" ");
+      if ( (i % (32) == 0))
+        printf("\n");
+    }
+  }
+  printf("\n");
+
+}
+/********* inode.c: print information in / INODE (INODE #2) *********/
+int iblock;
+inode()
+{
+  char buf[BLKSIZE];
+  // read GD
+  get_block(fd, 2, buf);
+  gp = (GD *)buf;
+  iblock = gp->bg_inode_table;   // get inode start block#
+  printf("inode_block=%d\n", iblock);
+
+  // get inode start block     
+  get_block(fd, iblock, buf);
+
+  ip = (INODE *)buf + 1;         // ip points at 2nd INODE
+  printf("mode=%4x ", ip->i_mode);
+  printf("uid=%d  gid=%d\n", ip->i_uid, ip->i_gid);
+  printf("size=%d\n", ip->i_size);
+  printf("mount time=%s",   ctime(&ip->i_mtime));
+  printf("link=%d\n", ip->i_links_count);
+  printf("i_block[0]=%d\n", ip->i_block[0]);
+
+ /*****************************
+  u16  i_mode;                      // fiel type|permission bits
+  u16  i_uid;                       // ownerID
+  u32  i_size;                      // file size in bytes
+  u32  i_atime;                     // time fields  
+  u32  i_ctime;
+  u32  i_mtime;
+  u32  i_dtime;
+  u16  i_gid;                       // groupID
+  u16  i_links_count;               // link count
+  u32  i_blocks;                    // IGNORE
+  u32  i_flags;                     // IGNORE
+  u32  i_reserved1;                 // IGNORE
+  u32  i_block[15];                 // IMPORTANT, but later
+ ***************************/
+}
+
+/*****************************************************************************/
+dirc()
+{
+  DIR dp;
+  char dbuf[BLKSIZE];
+  
+  // The second INODE will yield the '/' directory
+  
+}
+
+/*****************************************************************************/
+char *disk = "mydisk";
 main(int argc, char *argv[ ])
 
 { 
@@ -133,5 +263,8 @@ main(int argc, char *argv[ ])
 
   super();
   gd();
+  imap();
+  bmap();
+  inode();
 }
 
